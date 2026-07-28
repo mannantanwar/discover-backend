@@ -1,0 +1,23 @@
+spring:
+  application:
+    name: backend
+  datasource:
+    url: jdbc:postgresql://localhost:5433/discover
+    username: user
+    password: root
+  jpa:
+    hibernate:
+      ddl-auto: validate
+  flyway:
+    enabled: true
+  security:
+    oauth2:
+      client:
+        registration:
+          google:
+            client-id: ${GOOGLE_CLIENT_ID}
+            client-secret: ${GOOGLE_CLIENT_SECRET}
+            scope: email,profile
+jwt:
+  secret: ${JWT_SECRET:this-is-a-dev-only-fallback-secret-make-it-long-please-32-bytes-min}
+  expiration-ms: 86400000
