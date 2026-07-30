@@ -1,7 +1,7 @@
 package com.discover.backend.security;
 
 import com.discover.backend.user.User;
-import com.discover.backend.user.UserRepository;
+import com.discover.backend.user.UserService;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -15,7 +15,6 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Optional;
 import java.util.UUID;
 
 @Component
@@ -23,7 +22,7 @@ import java.util.UUID;
 public class JwtAuthFilter extends OncePerRequestFilter {
 
     private final JwtService jwtService;
-    private final UserRepository userRepo;
+    private final UserService userService;
 
     @Override
     protected void doFilterInternal(HttpServletRequest request , HttpServletResponse response , FilterChain filterChain) throws ServletException, IOException {
@@ -37,14 +36,11 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         String token = header.substring(7);
         try{
             UUID publicId = jwtService.getPublicIdFromToken(token);
-            Optional<User> userOpt = userRepo.findByPublicId(publicId);
-            if(userOpt.isPresent()){
-                User user = userOpt.get();
-                UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(user, null, List.of());
-                SecurityContextHolder.getContext().setAuthentication(authentication);
-            }
+            User user = userService.getEntityByPublicId(publicId);
+            UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(user, null, List.of());
+            SecurityContextHolder.getContext().setAuthentication(authentication);
         }catch(Exception e){
-
+            // invalid/expired token, or no matching user — leave unauthenticated, SecurityConfig's rules decide what happens next
         }
         filterChain.doFilter(request,response);
     }

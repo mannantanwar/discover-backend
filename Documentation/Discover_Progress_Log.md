@@ -20,13 +20,13 @@
 - [x] `UserDto` + `UserMapper` (MapStruct) — controllers must never return the entity directly. `UserDto` uses Lombok `@Data` (fine for DTOs, unlike entities — see conventions below).
 - [x] `UserService` — `getByPublicId(UUID)`, constructor-injected repo + mapper, `.orElseThrow(...)` on not-found
 - [x] `UserController` — `GET /api/v1/users/{publicId}` (temporary, path-variable-based; swap for real `/me` reading off the JWT once security exists)
-- [x] JWT issuance + validation — `JwtService` (`com.discover.backend.security`, JJWT 0.12.x, HMAC-SHA256, `generateToken`/`getPublicIdFromToken`), `SecurityConfig` (CSRF disabled, temporarily `permitAll()` on everything until OAuth2 exists), `JwtAuthFilter` (`OncePerRequestFilter`, reads `Authorization: Bearer`, sets `SecurityContextHolder`). **Not yet done:** wiring `JwtAuthFilter` into `SecurityConfig`'s filter chain (`.addFilterBefore(...)`).
-- [ ] Google OAuth2 sign-in flow → upsert user → issue app JWT (needs a Google Cloud Console OAuth2 Client ID first — external step, not done yet)
-- [x] `interaction_events` feature — `Event` entity (`com.discover.backend.event`, `@Table(name = "interaction_events")`, `@ManyToOne`/`@JoinColumn` to `User`, `@JdbcTypeCode(SqlTypes.JSON)` for the `context` JSONB column), `EventRepository`, `EventService.record(...)` (write-only). Not yet wired to anything — login doesn't exist yet to call it.
-- [ ] Verify `/v3/api-docs` and Swagger UI actually load
-- [ ] Global exception handler (`@RestControllerAdvice`, standard error shape)
-- [ ] Dockerfile
-- [ ] GitHub Actions CI (build + test on push, Testcontainers Postgres)
+- [x] JWT issuance + validation — `JwtService` (`com.discover.backend.security`, JJWT 0.12.x, HMAC-SHA256, `generateToken`/`getPublicIdFromToken`), `JwtAuthFilter` (`OncePerRequestFilter`, reads `Authorization: Bearer`, sets `SecurityContextHolder`), registered into `SecurityConfig` via `.addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)`.
+- [x] `interaction_events` feature — `Event` entity (`com.discover.backend.event`, `@Table(name = "interaction_events")`, `@ManyToOne`/`@JoinColumn` to `User`, `@JdbcTypeCode(SqlTypes.JSON)` for the `context` JSONB column), `EventRepository`, `EventService.record(...)` (write-only). Now actually called from `OAuth2SuccessHandler` on every login.
+- [x] Google OAuth2 sign-in flow — Google Cloud Console project + OAuth2 Client ID/Secret created (`GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` as Windows user env vars, never committed), `application.yml` registration (`scope: openid,email,profile` — `openid` required for Google to issue an ID token/OIDC), `OAuth2SuccessHandler` (upserts by `providerSub`, falls back to linking by `email` for a pre-existing account, logs a `LOGIN` event, issues our own JWT, writes it as JSON), wired into `SecurityConfig` via `.oauth2Login(...)`. Wrapped in try/catch with `@Slf4j` logging + the tech spec's standard error shape, since this path runs inside the security filter chain and won't be reached by the global exception handler once that's built.
+- [x] Verify `/v3/api-docs` and Swagger UI actually load — confirmed manually.
+- [x] Global exception handler — `com.discover.backend.common`: `ErrorDetail`/`ErrorResponse` (Java records, not Lombok — the more idiomatic choice for a small immutable data holder), `ResourceNotFoundException`, `GlobalExceptionHandler` (`@RestControllerAdvice`, one handler for `ResourceNotFoundException` → 404, one catch-all → 500 with a safe generic message). `UserService` updated to throw `ResourceNotFoundException` instead of a plain `RuntimeException`.
+- [x] Dockerfile — multi-stage build (`eclipse-temurin:21-jdk` build stage runs `./gradlew bootJar`, `eclipse-temurin:21-jre` final stage just copies the jar out). Built and verified locally with `docker build` — succeeds, image `discover-backend:latest` (179MB content). **Actual cloud deployment (Railway/Fly) deferred** — see `Discover_Pending_Tasks.md`, no mobile client exists yet to justify it.
+- [x] GitHub Actions CI — `.github/workflows/ci.yml`, triggers on push/PR to `main`, checks out code, sets up JDK 21 (Temurin), runs `./gradlew build` (compiles + runs tests in one step). **Not yet verified running for real** — this can only actually be confirmed once pushed to GitHub and the Actions tab shows a run; commit and push, then check.
 
 ---
 
@@ -55,6 +55,11 @@ Applied to `User` (`createdAt`/`updatedAt`) and `Event` (`createdAt`) on 2026-07
 
 ### Package names are always lowercase
 Caught and fixed once already: a feature folder was created as `User/` (capital) while the `package` declaration said `com.discover.backend.user` (lowercase). Windows hid the mismatch (case-insensitive filesystem); this would have broken on Linux CI. Always lowercase, matching the package declaration exactly.
+
+### Repositories are only ever called by their own service — never by controllers, filters, or handlers
+`JwtAuthFilter` and `OAuth2SuccessHandler` originally called `UserRepository` directly, skipping `UserService`. Fixed 2026-07-29: `UserService` gained `getEntityByPublicId(UUID)` (returns the real entity, for internal/infrastructure callers that need more than a DTO) and `upsertFromOAuth(...)` (the full account-lookup/link/create decision, previously duplicated across `OAuth2SuccessHandler`'s branches). Both security classes now depend on `UserService` only.
+**Why:** this is close to universal convention in layered backend architecture, not a stylistic preference — repositories are infrastructure, and any real logic around "how a user gets looked up" belongs in exactly one place so it isn't duplicated or drifts between call sites. Spring Security's own intended pattern for this (`UserDetailsService`) backs the same principle.
+**Also decided:** `UserService.upsertFromOAuth(...)` takes plain `String` parameters (`email`, `providerSub`, `displayName`, `avatarUrl`, `authProvider`), not the raw `OAuth2User` object — extracting those values is OAuth2-specific and stays in `OAuth2SuccessHandler`, keeping the `user` package free of any dependency on Spring Security/OAuth2 types.
 
 ---
 
