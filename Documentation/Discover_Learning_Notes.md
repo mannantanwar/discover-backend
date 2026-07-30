@@ -68,6 +68,21 @@ Commands actually used on this project so far, and why each one:
 ### One-off throwaway containers, for testing
 - `docker run --rm -e PGPASSWORD=root postgis/postgis:16-3.4 psql -h ... -U user -d discover -c "SELECT 1;"` — spins up a brand-new, temporary container just to run one command, then deletes itself (`--rm`). Used this repeatedly while diagnosing the auth bug, to test the exact same connection from different network paths (inside Docker's network vs. across the Windows/WSL2 relay) without needing a real client installed anywhere.
 
+## Windows / PowerShell
+
+### Reading back an environment variable you set earlier
+```powershell
+[System.Environment]::GetEnvironmentVariable("GOOGLE_CLIENT_ID", "User")
+[System.Environment]::GetEnvironmentVariable("GOOGLE_CLIENT_SECRET", "User")
+```
+Prints the value of a user-level environment variable. Useful for retrieving secrets we deliberately stored as env vars instead of in a file (e.g. `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`) when we need to copy them somewhere else, like into a GitHub Secret.
+
+Setting one (what we ran the first time, to store them):
+```powershell
+[System.Environment]::SetEnvironmentVariable("GOOGLE_CLIENT_ID", "the-actual-value", "User")
+```
+`"User"` scope = persists across terminal restarts for your account, but a newly opened terminal is needed to see a var set *just now* — existing open terminals won't pick it up until reopened.
+
 ## Git / GitHub
 
 *(e.g. local vs remote, staging vs committing, .gitignore...)*
