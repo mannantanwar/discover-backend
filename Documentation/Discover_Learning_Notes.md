@@ -39,6 +39,15 @@ Where I used it in this project:
 
 *(e.g. indexes, BIGSERIAL, migrations, Postgres vs standard SQL...)*
 
+### `CREATE INDEX ... USING <method>` — indexes aren't all B-trees
+Full syntax is actually `CREATE INDEX index_name ON table_name USING method (column_name);`. The `USING method` part is usually invisible because **`btree` is the default** — `CREATE INDEX idx ON table (col)` is silently `CREATE INDEX idx ON table USING btree (col)`.
+
+`method` = which underlying data structure the index uses. Postgres ships several: `btree` (default — equality, `<`/`>`, sorting), `hash` (equality only), `gin`, `brin`, `gist`.
+
+Why it matters for us: a B-tree only knows how to put values in order (less than / equal / greater than) — great for numbers, dates, text, but useless for "is this point within 5km of that point," since GPS coordinates can't be sorted into a single line to binary-search. That's a spatial relationship, not an ordering one.
+
+**GiST** (Generalized Search Tree) is Postgres's general-purpose framework for exactly these non-ordering searches (spatial containment, overlap, nearest-neighbor). PostGIS plugs its geometry/geography logic into GiST — that's why `places.location` gets `USING GIST (location)` instead of the default B-tree, and it's what makes future "near me" (`ST_DWithin`) queries fast instead of checking every row's distance one by one.
+
 ## Docker
 
 Commands actually used on this project so far, and why each one:
