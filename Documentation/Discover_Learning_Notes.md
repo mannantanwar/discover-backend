@@ -24,6 +24,7 @@ Where I used it in this project:
 - [ChatGPT conversation](https://chatgpt.com/share/6a651c3c-9c94-83ee-bc23-2ff024f371bf) — more side learning/doubts. --> contains the jwtstructure adn bean doubts 
 - [ChatGPT conversation](https://chatgpt.com/share/6a6b8b56-7718-83ee-b81a-a24cac7f3b9a) — more side learning/doubts.
 - [CI explanation](https://chatgpt.com/share/6a6b9ad1-1f50-83e8-a04c-fc02ac46053c) — GitHub Actions CI workflow explained.
+- [@Mapper explanation and the error we are getting currently](https://chatgpt.com/share/6a72321a-cb30-83ee-ae78-10a67f894d4d) — MapStruct `@Mapper`/`@Mapping` explained, plus the Lombok+MapStruct "Unknown property" compile error.
 
 ---
 
