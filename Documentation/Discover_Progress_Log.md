@@ -36,9 +36,9 @@
 
 - [ ] `Place` entity + migration (`com.discover.backend.place.Place`) — foundation everything else depends on
 - [ ] Repo/service/controller/DTO/mapper for `Place` — list all, get by ID (same shape as `User`)
-- [ ] Seed data — manually enter ~30–50 real places for one neighborhood
-- [ ] "Near me" query — PostGIS `ST_DWithin` via Hibernate Spatial
-- [ ] Search + filters — `pg_trgm`/full-text on name, filter by category/budget/open-now
+- [x] Seed data — `V3__seed_places.sql`, 12 real places in Connaught Place, New Delhi. Deliberately kept smaller than the ~30–50 the Build Plan suggested — enough to build/test "near me," search, and filters against; can expand later if needed.
+- [x] "Near me" query — `PlaceRepository.findWithinDistance` (native `ST_DWithin`/`ST_Distance` query), `PlaceService.getPlacesWithinDistance`, `GET /api/v1/places/nearby?lat=&lng=&radius=`
+- [x] Search + filters — `pg_trgm` GIN index (`V4__enable_pg_trgm.sql`) accelerating `ILIKE` name search, plus category/budget filters, all optional (`PlaceRepository.search`, `PlaceService.getPlacesBySearchFilter`, `GET /api/v1/places/search?name=&category=&budgetLevel=`). "Open now" deferred — needs current-time-vs-`opening_hours` comparison, its own separate pass.
 - [ ] Save places + Collections — join between `User` and `Place`
 
 ---

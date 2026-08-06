@@ -25,4 +25,18 @@ public class PlaceService {
                 .orElseThrow(() -> new ResourceNotFoundException("Place not found: " + publicId));
         return placeMapper.toDto(place);
     }
+
+    public List<PlaceDto> getPlacesWithinDistance(Double lng, Double lat, Double radius) {
+        List<Place> placesWithin = placeRepo.findWithinDistance(lng, lat, radius);
+        return placesWithin.stream()
+                .map(placeMapper::toDto)
+                .toList();
+    }
+
+    public List<PlaceDto> getPlacesBySearchFilter(String name , String category , Integer budgetLevel){
+        List<Place>places = placeRepo.search(name , category, budgetLevel);
+        return places.stream()
+                .map(placeMapper :: toDto)
+                .toList();
+    }
 }

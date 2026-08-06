@@ -25,6 +25,8 @@ Where I used it in this project:
 - [ChatGPT conversation](https://chatgpt.com/share/6a6b8b56-7718-83ee-b81a-a24cac7f3b9a) — more side learning/doubts.
 - [CI explanation](https://chatgpt.com/share/6a6b9ad1-1f50-83e8-a04c-fc02ac46053c) — GitHub Actions CI workflow explained.
 - [@Mapper explanation and the error we are getting currently](https://chatgpt.com/share/6a72321a-cb30-83ee-ae78-10a67f894d4d) — MapStruct `@Mapper`/`@Mapping` explained, plus the Lombok+MapStruct "Unknown property" compile error.
+- [PostGIS query explained](https://chatgpt.com/share/6a7243e0-3954-83ee-9668-3ac8ac498cdf) — the `findWithinDistance` native query (`ST_DWithin`/`ST_Distance`/`ST_MakePoint`) for the "near me" feature.
+- [Explanation of the GIN index and trigrams searching thing in Postgres](https://chatgpt.com/share/6a74cb89-af14-83e8-979c-be40a316b57c) — `pg_trgm`, trigram matching, and the GIN index behind the name search.
 
 ---
 
