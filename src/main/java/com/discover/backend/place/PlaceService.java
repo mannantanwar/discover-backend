@@ -21,9 +21,13 @@ public class PlaceService {
     }
 
     public PlaceDto getByPublicId(UUID publicId) {
-        Place place = placeRepo.findByPublicId(publicId)
-                .orElseThrow(() -> new ResourceNotFoundException("Place not found: " + publicId));
+        Place place = getEntityByPublicId(publicId);
         return placeMapper.toDto(place);
+    }
+
+    public Place getEntityByPublicId(UUID publicId) {
+        return placeRepo.findByPublicId(publicId)
+                .orElseThrow(() -> new ResourceNotFoundException("Place not found: " + publicId));
     }
 
     public List<PlaceDto> getPlacesWithinDistance(Double lng, Double lat, Double radius) {
