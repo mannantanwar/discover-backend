@@ -30,16 +30,17 @@
 
 ---
 
-## Stage E — Phase 1: Places core (Not Started)
+## Stage E — Phase 1: Places core (Complete)
 
 > Rough plan only, sketched 2026-07-31 — not a locked spec, expect this to be reordered/reshaped as we actually build it.
 
-- [ ] `Place` entity + migration (`com.discover.backend.place.Place`) — foundation everything else depends on
-- [ ] Repo/service/controller/DTO/mapper for `Place` — list all, get by ID (same shape as `User`)
+- [x] `Place` entity + migration (`com.discover.backend.place.Place`, `V2__create_places.sql`) — foundation everything else depends on
+- [x] Repo/service/controller/DTO/mapper for `Place` — list all, get by ID (same shape as `User`)
 - [x] Seed data — `V3__seed_places.sql`, 12 real places in Connaught Place, New Delhi. Deliberately kept smaller than the ~30–50 the Build Plan suggested — enough to build/test "near me," search, and filters against; can expand later if needed.
 - [x] "Near me" query — `PlaceRepository.findWithinDistance` (native `ST_DWithin`/`ST_Distance` query), `PlaceService.getPlacesWithinDistance`, `GET /api/v1/places/nearby?lat=&lng=&radius=`
 - [x] Search + filters — `pg_trgm` GIN index (`V4__enable_pg_trgm.sql`) accelerating `ILIKE` name search, plus category/budget filters, all optional (`PlaceRepository.search`, `PlaceService.getPlacesBySearchFilter`, `GET /api/v1/places/search?name=&category=&budgetLevel=`). "Open now" deferred — needs current-time-vs-`opening_hours` comparison, its own separate pass.
-- [ ] Save places + Collections — join between `User` and `Place`
+- [x] Save places — `V5__create_saved_places.sql`, `Saved` entity (`com.discover.backend.saved`), `SavedRepository`/`SavedService` (idempotent save/unsave, `getMySavedPlaces`), `SavedController` (`POST`/`DELETE`/`GET /api/v1/saved-places`), all keyed off `@AuthenticationPrincipal User` — not a client-supplied ID. `SecurityConfig` tightened so `/api/v1/saved-places/**` requires authentication (first crack in the previously-all-`permitAll()` setup — see Pending Tasks).
+  **Collections deferred, deliberately** — Phase 1's own "done" bar is just "save some," and the Product Spec treats named/curated lists ("Curated Trails") as a distinct later feature. Building a general `Collection` model now would be solving problems (default-collection bootstrapping, naming, permissions) before anything needs them — YAGNI. Revisit if/when curated lists actually get scheduled.
 
 ---
 

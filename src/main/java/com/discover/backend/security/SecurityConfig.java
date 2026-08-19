@@ -21,6 +21,7 @@ public class SecurityConfig {
         http
                 .csrf(csrf->csrf.disable())
                 .authorizeHttpRequests(auth -> auth
+                        .requestMatchers("/api/v1/saved-places/**").authenticated()
                         .anyRequest().permitAll()
                 )
                 .oauth2Login(oauth2->
