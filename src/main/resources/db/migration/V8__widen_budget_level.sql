@@ -1,0 +1,1 @@
+ALTER TABLE places ALTER COLUMN budget_level TYPE INTEGER;

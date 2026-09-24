@@ -82,6 +82,20 @@
 
 ---
 
+## 7. App refused to start — `budget_level` type mismatch between entity and schema
+
+**Phase:** Stage F — Phase 2 (Dish Intelligence v1)
+
+**Problem:** The app failed at startup with `SchemaManagementException: wrong column type encountered in column [budget_level] in table [places]; found [int2 (SMALLINT)], but expecting [integer (INTEGER)]`.
+
+**Root cause:** my own mistake, made when `Place.java` was rewritten earlier in the project — `budgetLevel` was typed `Integer` in the entity, but `V2__create_places.sql` had declared `budget_level SMALLINT`. Hibernate's `ddl-auto: validate` checks that a field's Java type maps to the *exact* SQL type already in the database (`Integer` → `INTEGER`, 4 bytes; `SMALLINT`/`int2` is 2 bytes) — the two had silently disagreed since that migration was written, and only surfaced once the app actually tried to start against the real schema.
+
+**Fix:** a new forward migration, `V8__widen_budget_level.sql` — `ALTER TABLE places ALTER COLUMN budget_level TYPE INTEGER;` — widening the column to match the `Integer` type already used consistently everywhere else touching `budgetLevel` (`PlaceDto`, search filters, the controller), rather than narrowing the Java side to `Short` and cascading that change through four files for a field that only ever holds 1–4 anyway.
+
+**Also worth remembering:** never edit a migration file that's already been applied to a real database (`V2` had already run). Flyway checksums every applied migration in `flyway_schema_history` — editing one after the fact causes a checksum-mismatch error on the next migrate, a different failure than this one. The fix is always a *new* forward migration, never a rewrite of history.
+
+---
+
 ## How this file gets used
 
 Add an entry whenever something breaks in a way that took real investigation to root-cause — not every small typo or review correction, those are just normal iteration. Include what the symptom looked like, what was ruled out (if anything), the actual root cause, and the fix — future-us should be able to recognize the same class of problem faster next time.

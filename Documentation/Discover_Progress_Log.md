@@ -44,6 +44,19 @@
 
 ---
 
+## Stage F — Phase 2: Dish Intelligence v1 (In Progress)
+
+> Rough plan only, sketched 2026-08-20 — not a locked spec, expect this to be reordered/reshaped as we actually build it.
+
+- [x] `Dish` entity + migration (`com.discover.backend.dish`) — belongs to a `Place` (`@ManyToOne`), `V6__create_dishes.sql`
+- [x] Repo/service/controller/DTO/mapper for `Dish` — `GET /api/v1/places/{placePublicId}/dishes`, `GET /api/v1/dishes/{publicId}`. `DishService` resolves the `Place` entity first (via `PlaceService.getEntityByPublicId`) so a bad place ID 404s instead of silently returning an empty list.
+- [x] Seed dish data — `V7__seed_dishes.sql`, 15 real dishes across 5 of the 12 places
+- [ ] Dish reviews/ratings — own sub-feature, needs its own scoping pass when we get there
+- [ ] Simple dish analytics — counts only (most-viewed etc.), no ML
+- [ ] "Recommended for you" — rules-based tag matching; exactly how much of "user preferences" is available this early (vs. Phase 3's real taste-profile work) still to be figured out when we reach it
+
+---
+
 ## Conventions & Decisions Made While Building
 
 Things settled during actual implementation that aren't (or aren't yet) written into the original spec docs — check here before assuming a default.
