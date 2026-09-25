@@ -1,6 +1,8 @@
 package com.discover.backend.dish;
 
+import com.discover.backend.user.User;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -22,7 +24,7 @@ public class DishController {
     }
 
     @GetMapping("/dishes/{publicId}")
-    public DishDto getDishByPublicId(@PathVariable UUID publicId) {
-        return dishService.getByPublicId(publicId);
+    public DishDto getDishByPublicId(@AuthenticationPrincipal User viewer, @PathVariable UUID publicId) {
+        return dishService.getByPublicId(publicId, viewer);
     }
 }

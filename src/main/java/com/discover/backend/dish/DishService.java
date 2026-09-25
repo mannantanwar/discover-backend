@@ -1,8 +1,10 @@
 package com.discover.backend.dish;
 
 import com.discover.backend.common.ResourceNotFoundException;
+import com.discover.backend.event.EventService;
 import com.discover.backend.place.Place;
 import com.discover.backend.place.PlaceService;
+import com.discover.backend.user.User;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -16,10 +18,11 @@ public class DishService {
     private final DishRepository dishRepository;
     private final DishMapper dishMapper;
     private final PlaceService placeService;
+    private final EventService eventService;
 
-    public DishDto getByPublicId(UUID dishPublicId) {
-        Dish dish = dishRepository.findByPublicId(dishPublicId)
-                .orElseThrow(() -> new ResourceNotFoundException("Dish not found: " + dishPublicId));
+    public DishDto getByPublicId(UUID dishPublicId, User viewer) {
+        Dish dish = getEntityByPublicId(dishPublicId);
+        eventService.record(viewer, "DISH_VIEW", "DISH", dish.getId(), null);
         return dishMapper.toDto(dish);
     }
 
@@ -28,5 +31,10 @@ public class DishService {
         return dishRepository.findAllByPlace(place).stream()
                 .map(dishMapper::toDto)
                 .toList();
+    }
+
+    public Dish getEntityByPublicId(UUID dishPublicId) {
+        return dishRepository.findByPublicId(dishPublicId)
+                .orElseThrow(() -> new ResourceNotFoundException("Dish not found: " + dishPublicId));
     }
 }
