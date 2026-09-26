@@ -19,4 +19,6 @@ public interface DishReviewRepository extends JpaRepository<DishReview, Long> {
 
     @Query("SELECT AVG(r.rating) FROM DishReview r WHERE r.dish = :dish")
     Double averageRatingByDish(@Param("dish") Dish dish);
+
+    List<DishReview> findByUser(User user);
 }

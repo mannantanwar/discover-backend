@@ -35,9 +35,17 @@ public class DishReviewService {
 
     public DishStatsDto getStatsForDish(UUID dishPublicId) {
         Dish dish = dishService.getEntityByPublicId(dishPublicId);
+        return getStatsForDish(dish);
+    }
+
+    public DishStatsDto getStatsForDish(Dish dish) {
         DishStatsDto stats = new DishStatsDto();
         stats.setAverageRating(dishReviewRepository.averageRatingByDish(dish));
         stats.setReviewCount(dishReviewRepository.countByDish(dish));
         return stats;
+    }
+
+    public List<DishReview> getAllReviewsByUser(User user) {
+        return dishReviewRepository.findByUser(user);
     }
 }
