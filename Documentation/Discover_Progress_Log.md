@@ -44,16 +44,16 @@
 
 ---
 
-## Stage F — Phase 2: Dish Intelligence v1 (In Progress)
+## Stage F — Phase 2: Dish Intelligence v1 (Complete)
 
 > Rough plan only, sketched 2026-08-20 — not a locked spec, expect this to be reordered/reshaped as we actually build it.
 
 - [x] `Dish` entity + migration (`com.discover.backend.dish`) — belongs to a `Place` (`@ManyToOne`), `V6__create_dishes.sql`
-- [x] Repo/service/controller/DTO/mapper for `Dish` — `GET /api/v1/places/{placePublicId}/dishes`, `GET /api/v1/dishes/{publicId}`. `DishService` resolves the `Place` entity first (via `PlaceService.getEntityByPublicId`) so a bad place ID 404s instead of silently returning an empty list.
+- [x] Repo/service/controller/DTO/mapper for `Dish` — `GET /api/v1/places/{placePublicId}/dishes`, `GET /api/v1/dishes/{publicId}`. `DishService` resolves the `Place` entity first (via `PlaceService.getEntityByPublicId`) so a bad place ID 404s instead of silently returning an empty list. Also logs a `DISH_VIEW` event on every fetch (`EventService`) — the interaction log's second real consumer after `LOGIN`.
 - [x] Seed dish data — `V7__seed_dishes.sql`, 15 real dishes across 5 of the 12 places
-- [ ] Dish reviews/ratings — own sub-feature, needs its own scoping pass when we get there
-- [ ] Simple dish analytics — counts only (most-viewed etc.), no ML
-- [ ] "Recommended for you" — rules-based tag matching; exactly how much of "user preferences" is available this early (vs. Phase 3's real taste-profile work) still to be figured out when we reach it
+- [x] Dish reviews/ratings — `V9__create_dish_reviews.sql` (composite `UNIQUE(user_id, dish_id)` + `CHECK (rating BETWEEN 1 AND 5)`), `DishReview` entity (`com.discover.backend.dishreview`), `DishReviewRepository`/`DishReviewService`/`DishReviewController` (`GET`/`POST /api/v1/dishes/{dishPublicId}/reviews`, `@RequestBody DishReviewRequest`, upsert semantics — a second review from the same user updates the first instead of erroring).
+- [x] Simple dish analytics — `DishReviewService.getStatsForDish` (average rating + review count, plain JPQL `AVG`/derived `countBy`), `GET /api/v1/dishes/{dishPublicId}/reviews/stats`.
+- [x] "Recommended for you" — `com.discover.backend.recommendation`: `DishRecommendationStrategy` interface (with a `RecommendationType` enum + `DishRecommendationStrategyFactory` picking the implementation — currently just `RULE_BASED`, structured so a second type slots in later without touching callers), `RuleBasedDishRecommendationStrategy` (tag-overlap against the user's own 4★+ reviews, weighted by how often each tag shows up; falls back to popularity ranking for cold start — no rating history at all, or none rated highly), `DishRecommendationService`, `RecommendationController` (`GET /api/v1/places/{placePublicId}/recommendation/{type}`).
 
 ---
 
@@ -94,6 +94,17 @@ Caught and fixed once already: a feature folder was created as `User/` (capital)
 
 ### Secrets in CI use GitHub repository secrets, not files — same principle as local env vars, different vault
 `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` have no fallback in `application.yml` on purpose. Locally that's satisfied by Windows user environment variables; in CI, GitHub Actions has its own separate mechanism — repository secrets (Settings → Secrets and variables → Actions), referenced in `ci.yml` via `${{ secrets.GOOGLE_CLIENT_ID }}` and passed through as env vars on the build step. GitHub encrypts these, never displays them again after saving, and auto-masks them in log output if they ever appear — protections a plain value in a tracked YAML file would never get.
+
+### Strategy + Factory, but only once a second implementation is a near-certainty — not for every interface
+`DishRecommendationStrategy` got a real interface (not just a concrete class) specifically because Phase 3 is already documented to need a smarter, taste-profile-based implementation later — the interface exists to let that swap in without touching `DishRecommendationService`/the controller. `DishRecommendationStrategyFactory` + `RecommendationType` enum picks the implementation by type, currently just `RULE_BASED`.
+**Why not build all the eventually-discussed types (taste-profile-based, friends/Taste-Network-based, experimental) now:** three of the four discussed types need infrastructure that doesn't exist yet (real Taste Profile, a social graph) — defining enum values with no real implementation behind them is a different, worse kind of premature than the interface itself, since there's nothing to actually dispatch to. Add each one when it's genuinely buildable, not before. The "experimental/risk score" idea is logged in `Discover_Pending_Tasks.md`.
+**General rule this confirms:** an interface with only one implementation isn't automatically over-engineering — it depends on whether a second implementation is a documented near-certainty (this case) vs. a speculative "might need it someday" (which is premature).
+
+### A strategy's own result type lives nested inside the interface that returns it
+`RankedDish` (dish + reason) is a nested `class` inside `DishRecommendationStrategy`, not a standalone top-level file — it's the contract's own output shape, and every implementation (current and future) shares it automatically without a separate import chain. It's also explicitly an **internal** type: it holds a raw `Dish` entity, so it never leaves the recommendation package as-is — `DishRecommendationService` maps it to `RecommendedDishDto` (a real DTO, `DishDto` + `reason`) before anything reaches a controller. Same "controllers/DTOs never expose entities" rule as everywhere else in the project, just easy to miss on a brand-new feature's first pass.
+
+### Cold start: check *after* filtering, not before fetching
+`RuleBasedDishRecommendationStrategy`'s popularity fallback triggers when the user has no reviews rated 4★+ — checked **after** filtering by rating, not just "does the user have any reviews at all." A user who's reviewed plenty of dishes but never rated anything highly is still a cold-start case for this algorithm; checking too early would have let them fall through to a tag-overlap computation against an empty preference map (everything tying at score 0, no real fallback).
 
 ---
 

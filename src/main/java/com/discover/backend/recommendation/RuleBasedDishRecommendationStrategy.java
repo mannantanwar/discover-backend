@@ -4,6 +4,7 @@ import com.discover.backend.dish.Dish;
 import com.discover.backend.dishreview.DishReview;
 import com.discover.backend.dishreview.DishReviewService;
 import com.discover.backend.dishreview.DishStatsDto;
+import com.discover.backend.recommendation.DishRecommendationStrategy.RankedDish;
 import com.discover.backend.user.User;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;

@@ -27,10 +27,14 @@ public class DishService {
     }
 
     public List<DishDto> getDishesForPlace(UUID placePublicId) {
-        Place place = placeService.getEntityByPublicId(placePublicId);
-        return dishRepository.findAllByPlace(place).stream()
+        return getDishEntitiesForPlace(placePublicId).stream()
                 .map(dishMapper::toDto)
                 .toList();
+    }
+
+    public List<Dish> getDishEntitiesForPlace(UUID placePublicId) {
+        Place place = placeService.getEntityByPublicId(placePublicId);
+        return dishRepository.findAllByPlace(place);
     }
 
     public Dish getEntityByPublicId(UUID dishPublicId) {

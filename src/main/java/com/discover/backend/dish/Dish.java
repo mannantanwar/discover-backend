@@ -21,6 +21,7 @@ import org.hibernate.type.SqlTypes;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -52,10 +53,11 @@ public class Dish {
     @Column(nullable = false)
     private BigDecimal price;
 
-    @JdbcTypeCode(SqlTypes.ARRAY) // this annotation tells the hibernate 
+    @JdbcTypeCode(SqlTypes.ARRAY) // this annotation tells the hibernate
     // that the following field is an array of strings
     @Column(columnDefinition = "text[]")
-    private List<String> tasteTags;
+    @Builder.Default
+    private List<String> tasteTags = new ArrayList<>();
 
     private String photoUrl;
 

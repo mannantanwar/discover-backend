@@ -26,6 +26,11 @@ Listed in the long-term Product Spec's MVP feature list, but explicitly out of P
 
 **No automated tests exist yet**, despite JUnit 5, Spring Boot Test, and Testcontainers already being set up as dependencies since the very start of the project. Everything so far has been verified manually (curl/Swagger/psql/logs). Given the "industry-standard, scalable" standard we're holding this code to, real test coverage is a genuine gap, not just a nice-to-have — worth prioritizing once the current feature work stabilizes.
 
+## Recommendations
+
+**"Experimental" recommendation mode with a risk score — Mannan's idea, noted 2026-09-26.**
+A fourth recommendation type alongside past-reviews-based (built), taste-profile-based (Phase 3), and friends/similar-taste-based (Phase 5, Taste Network): deliberately surface dishes *outside* the user's usual pattern — the opposite of tag-overlap — tagged with some kind of "risk score" indicating how far it is from their known preferences. Not in the Product Spec or Build Plan under this name; a genuinely new idea, not yet designed. Would need its own scoping pass: what "risk score" actually means algorithmically, how it's computed, and how/where it surfaces in the API before it's buildable. Revisit once the `DishRecommendationStrategy` factory has a second real implementation and this becomes worth adding as a third.
+
 ## Observability
 
 **Logging is minimal** — just `@Slf4j` + a couple of `log.error(...)` calls in `OAuth2SuccessHandler`. No structured logging, no consistent logging strategy across the app yet. Fine for now at this scale; revisit if debugging production issues ever becomes hard with what's here.
