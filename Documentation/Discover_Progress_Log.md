@@ -57,6 +57,19 @@
 
 ---
 
+## Stage G — Phase 3: Taste Profile + Recommendations v1 (Not Started)
+
+> Rough plan only, sketched 2026-09-28 — not a locked spec, expect this to be reordered/reshaped as we actually build it.
+
+- [ ] Onboarding taste capture → a real `TasteProfile` entity (what the user is actually built from is still open — explicit picks at signup, learned from behavior, or both)
+- [ ] Taste Profile learning from the interaction event log — compute-on-read vs. incrementally-updated-on-write is a real tradeoff to make deliberately, not default into
+- [ ] `TasteProfileDishRecommendationStrategy` — the second real implementation of `DishRecommendationStrategy`, wired into the existing Factory via a new `RecommendationType.TASTE_PROFILE` value. This is the actual payoff of building Strategy + Factory back in Phase 2 rather than a single concrete class.
+- [ ] Smarter "why am I seeing this" reasons, grounded in the same dimensions the profile is built from, not just tag overlap
+- [ ] Context intelligence v1 — time of day / weather (new external dependency + secret if weather is used), maybe a festival calendar
+- [ ] Personalized Home Feed — a new orchestration layer sitting above the recommendation strategies, not a strategy itself
+
+---
+
 ## Conventions & Decisions Made While Building
 
 Things settled during actual implementation that aren't (or aren't yet) written into the original spec docs — check here before assuming a default.

@@ -50,4 +50,9 @@ public class UserService {
                 .build();
         return userRepo.save(newUser);
     }
+
+    public void markOnboardingSeen(User user) {
+        user.setTasteOnboardingShown(true);
+        userRepo.save(user);
+    }
 }

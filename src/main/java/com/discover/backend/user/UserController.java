@@ -1,7 +1,9 @@
 package com.discover.backend.user;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -16,5 +18,10 @@ public class UserController {
     @GetMapping("/{publicId}")
     public UserDto getUserByPublicId(@PathVariable UUID publicId) {
         return userService.getByPublicId(publicId);
+    }
+
+    @PatchMapping("/onboarding-seen")
+    public void markOnboardingSeen(@AuthenticationPrincipal User user) {
+        userService.markOnboardingSeen(user);
     }
 }

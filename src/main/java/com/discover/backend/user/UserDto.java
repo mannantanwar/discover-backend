@@ -15,4 +15,5 @@ public class UserDto {
     private String avatarUrl;
     private Boolean emailVerified;
     private Instant createdAt;
+    private boolean tasteOnboardingShown;
 }

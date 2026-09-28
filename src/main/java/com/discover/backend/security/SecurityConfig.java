@@ -22,6 +22,8 @@ public class SecurityConfig {
                 .csrf(csrf->csrf.disable())
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/v1/saved-places/**").authenticated()
+                        .requestMatchers("/api/v1/taste-profile/**").authenticated()
+                        .requestMatchers("/api/v1/users/onboarding-seen").authenticated()
                         .anyRequest().permitAll()
                 )
                 .oauth2Login(oauth2->
