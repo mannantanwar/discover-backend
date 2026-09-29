@@ -3,7 +3,6 @@ package com.discover.backend.recommendation;
 import com.discover.backend.dish.Dish;
 import com.discover.backend.dishreview.DishReview;
 import com.discover.backend.dishreview.DishReviewService;
-import com.discover.backend.dishreview.DishStatsDto;
 import com.discover.backend.recommendation.DishRecommendationStrategy.RankedDish;
 import com.discover.backend.user.User;
 import lombok.RequiredArgsConstructor;
@@ -15,6 +14,7 @@ import java.util.*;
 @RequiredArgsConstructor
 public class RuleBasedDishRecommendationStrategy implements  DishRecommendationStrategy {
     private final DishReviewService dishReviewService;
+    private final PopularityFallbackRanker popularityFallbackRanker;
     @Override
     public List<RankedDish> getRecommendedDishes(List<Dish>candidateDishes, User user){
         // ab is user ke pass hai history if rating and us rating me se iska pref vector bana pdega and then cpmare the dihses ,jiska jitna zyda overlapp utna high score // for the new user users ki popularity ke bsis pr hoga ye select
@@ -27,7 +27,8 @@ public class RuleBasedDishRecommendationStrategy implements  DishRecommendationS
         // a user could have reviews but none of them 4+, which is still cold start for our purposes
         if(filteredDishes.isEmpty()){
             // cold start ke andar ky ahoga basically get all the dhies and then recommed the top rated wuth the most views
-            return handleColdStart(candidateDishes);
+            // moved to PopularityFallbackRanker once TasteProfileDishRecommendationStrategy needed the exact same fallback
+            return popularityFallbackRanker.rankByPopularity(candidateDishes);
         }
         Map<String , Integer> priorityTags = new HashMap<>();
         filteredDishes.stream().
@@ -59,25 +60,6 @@ public class RuleBasedDishRecommendationStrategy implements  DishRecommendationS
                 .map(e -> buildRankedDish(e.getKey(), e.getValue()))
                 .toList();
         return finalDishes;
-    }
-
-    private List<RankedDish> handleColdStart(List<Dish> candidateDishes) {
-        // no rated dishes to learn from yet — rank by popularity instead of tag overlap
-        return candidateDishes.stream()
-                .sorted(Comparator.comparingDouble(this::popularityScore).reversed())
-                .map(dish -> {
-                    RankedDish rd = new RankedDish();
-                    rd.setDish(dish);
-                    rd.setReason("Popular choice");
-                    return rd;
-                })
-                .toList();
-    }
-
-    private double popularityScore(Dish dish) {
-        DishStatsDto stats = dishReviewService.getStatsForDish(dish);
-        double avg = stats.getAverageRating() == null ? 0.0 : stats.getAverageRating();
-        return avg * stats.getReviewCount();
     }
 
     // pulls out which of this dish's own tags actually matched the user's liked-tags map —

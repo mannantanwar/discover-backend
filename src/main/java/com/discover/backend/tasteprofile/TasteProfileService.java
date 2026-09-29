@@ -29,6 +29,14 @@ public class TasteProfileService {
         return tasteProfileMapper.toDto(profile);
     }
 
+    // for internal callers (like the recommendation strategies) that just need the tags,
+    // and shouldn't treat "no profile yet" as an error the way getMyProfile does
+    public List<String> getPreferredTags(User user) {
+        return tasteProfileRepository.findByUser(user)
+                .map(TasteProfile::getPreferredTags)
+                .orElse(List.of());
+    }
+
     public TasteProfileDto submitPicks(User user, List<String> tags) {
         TasteProfile profile = tasteProfileRepository.findByUser(user)
                 .orElseGet(() -> TasteProfile.builder().publicId(UUID.randomUUID()).user(user).build());

@@ -21,3 +21,5 @@ spring:
 jwt:
   secret: ${JWT_SECRET:this-is-a-dev-only-fallback-secret-make-it-long-please-32-bytes-min}
   expiration-ms: 86400000
+openweather:
+  api-key: ${OPENWEATHER_API_KEY}
