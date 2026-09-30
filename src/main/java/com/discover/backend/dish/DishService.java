@@ -37,6 +37,10 @@ public class DishService {
         return dishRepository.findAllByPlace(place);
     }
 
+    public List<Dish> getDishEntitiesNear(Double latitude, Double longitude, Double radiusMeters) {
+        return dishRepository.findWithinDistance(longitude, latitude, radiusMeters);
+    }
+
     public Dish getEntityByPublicId(UUID dishPublicId) {
         return dishRepository.findByPublicId(dishPublicId)
                 .orElseThrow(() -> new ResourceNotFoundException("Dish not found: " + dishPublicId));

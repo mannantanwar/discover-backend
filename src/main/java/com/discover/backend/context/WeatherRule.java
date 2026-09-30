@@ -35,26 +35,46 @@ public class WeatherRule implements ContextRule {
         }
 
         String condition = response.weather().get(0).main();
-        ContextSuggestion suggestion = new ContextSuggestion();
+        Double temp = response.main() == null ? null : response.main().temp();
 
-        switch (condition) {
-            case "Rain", "Thunderstorm" -> {
-                suggestion.setMessage("Perfect weather for chai and pakoras");
-                suggestion.setSuggestedTags(List.of("chai", "pakoras", "hot-snacks"));
-            }
-            case "Clear" -> {
-                if (response.main() != null && response.main().temp() >= 30) {
-                    suggestion.setMessage("Hot day — something cool might hit the spot");
-                    suggestion.setSuggestedTags(List.of("cold-beverage", "ice-cream"));
-                } else {
-                    return Optional.empty();
-                }
-            }
-            default -> {
-                return Optional.empty();
-            }
+        return switch (condition) {
+            case "Rain", "Drizzle", "Thunderstorm" -> suggestion(
+                    "Perfect weather for something warm and comforting",
+                    List.of("warm", "hot", "milky", "chocolatey", "creamy", "thick", "soupy",
+                            "spicy", "fried", "crispy", "savory", "tea", "coffee",
+                            "beverage", "snack", "comfort-food"));
+            case "Mist", "Fog", "Haze", "Smoke" -> suggestion(
+                    "Hazy out there — something warm might help",
+                    List.of("warm", "hot", "soupy", "spicy", "gingery", "tea", "coffee",
+                            "beverage", "comfort-food", "rich"));
+            case "Clear", "Clouds" -> byTemperature(temp);
+            default -> Optional.empty();
+        };
+    }
+
+    private Optional<ContextSuggestion> byTemperature(Double temp) {
+        if (temp == null) {
+            return Optional.empty();
         }
+        if (temp >= 30) {
+            return suggestion(
+                    "Hot day — something cool and refreshing might hit the spot",
+                    List.of("cold", "chilled", "icy", "refreshing", "light", "fruity", "tangy",
+                            "minty", "yogurt-based", "citrusy", "beverage", "dessert", "ice-cream"));
+        }
+        if (temp <= 15) {
+            return suggestion(
+                    "Chilly out — time for something rich and warming",
+                    List.of("warm", "hot", "rich", "buttery", "creamy", "soupy", "spicy",
+                            "milky", "chocolatey", "slow-cooked", "comfort-food", "beverage"));
+        }
+        return Optional.empty();
+    }
 
+    private Optional<ContextSuggestion> suggestion(String message, List<String> tags) {
+        ContextSuggestion suggestion = new ContextSuggestion();
+        suggestion.setMessage(message);
+        suggestion.setSuggestedTags(tags);
         return Optional.of(suggestion);
     }
 }

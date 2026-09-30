@@ -26,5 +26,4 @@ public interface PlaceRepository extends JpaRepository<Place, Long> {
               and (:budgetLevel is null or p.budget_level = :budgetLevel)
             """, nativeQuery = true)
     List<Place> search(@Param("name") String name, @Param("category") String category, @Param("budgetLevel") Integer budgetLevel);
-
 }

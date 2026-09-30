@@ -24,6 +24,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/saved-places/**").authenticated()
                         .requestMatchers("/api/v1/taste-profile/**").authenticated()
                         .requestMatchers("/api/v1/users/onboarding-seen").authenticated()
+                        .requestMatchers("/api/v1/home-feed/**").authenticated()
                         .anyRequest().permitAll()
                 )
                 .oauth2Login(oauth2->
