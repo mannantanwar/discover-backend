@@ -26,6 +26,7 @@ dependencies {
 	implementation("org.springframework.boot:spring-boot-starter-security-oauth2-resource-server")
 	implementation("org.springframework.boot:spring-boot-starter-validation")
 	implementation("org.springframework.boot:spring-boot-starter-webmvc")
+	implementation("org.springframework.boot:spring-boot-starter-restclient")
 	implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.6")
 	implementation("org.flywaydb:flyway-database-postgresql")
 	implementation("org.mapstruct:mapstruct:1.6.3")

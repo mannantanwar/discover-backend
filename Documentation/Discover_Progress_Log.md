@@ -57,16 +57,17 @@
 
 ---
 
-## Stage G — Phase 3: Taste Profile + Recommendations v1 (Not Started)
+## Stage G — Phase 3: Taste Profile + Recommendations v1 (Built — not yet tested end-to-end)
 
-> Rough plan only, sketched 2026-09-28 — not a locked spec, expect this to be reordered/reshaped as we actually build it.
+> Rough plan sketched 2026-09-28, built 2026-09-29 → 2026-10-01. The Build Plan's "done when" bar — two different onboarding answers produce visibly different feeds — hasn't been verified against a running app yet.
 
-- [ ] Onboarding taste capture → a real `TasteProfile` entity (what the user is actually built from is still open — explicit picks at signup, learned from behavior, or both)
-- [ ] Taste Profile learning from the interaction event log — compute-on-read vs. incrementally-updated-on-write is a real tradeoff to make deliberately, not default into
-- [ ] `TasteProfileDishRecommendationStrategy` — the second real implementation of `DishRecommendationStrategy`, wired into the existing Factory via a new `RecommendationType.TASTE_PROFILE` value. This is the actual payoff of building Strategy + Factory back in Phase 2 rather than a single concrete class.
-- [ ] Smarter "why am I seeing this" reasons, grounded in the same dimensions the profile is built from, not just tag overlap
-- [ ] Context intelligence v1 — time of day / weather (new external dependency + secret if weather is used), maybe a festival calendar
-- [ ] Personalized Home Feed — a new orchestration layer sitting above the recommendation strategies, not a strategy itself
+- [x] Onboarding taste capture — `V10__create_taste_profiles.sql`, `TasteProfile` entity (`com.discover.backend.tasteprofile`, one row per user, `preferredTags TEXT[]`), repo/service/controller/DTO/mapper. `GET /api/v1/taste-profile/tags` (picker options, pulled from `DishRepository.findDistinctTasteTags()` — same vocabulary dishes use, no second list to drift), `GET /api/v1/taste-profile` (404 = not done yet), `POST /api/v1/taste-profile` (upsert, same shape as `DishReviewService.addOrUpdateReview`).
+  Plus "show onboarding once": `V11__add_taste_onboarding_flag.sql` → `User.tasteOnboardingShown` (primitive `boolean`), exposed on `UserDto`. Submitting picks flips it; `PATCH /api/v1/users/onboarding-seen` flips it for the skip path. The client reads the flag after login and decides whether to show the screen — backend never "triggers" UI.
+- [x] Taste Profile learning — **Option B, compute-on-read, no persisted profile row.** Explicit picks are stored (real input has to live somewhere); the behavioral half is computed per request from `dish_reviews` (4★+). Same YAGNI call as dish stats. **Narrower than planned:** learns from ratings only, not the wider `interaction_events` log (views/saves aren't used yet).
+- [x] `TasteProfileDishRecommendationStrategy` + `RecommendationType.TASTE_PROFILE` — real sparse cosine similarity: user vector = `Map<String, Double>` (+1.0 per explicit pick, +1.0 per tag on each 4★+ dish, equal weighting — no tuned constants without data), dish vector = its own `tasteTags`. Cold-start logic extracted into shared `PopularityFallbackRanker`, now used by both strategies.
+- [~] "Why am I seeing this" — **partial.** Reasons name the matched tags ("Because it matches your taste in spicy, rich"), not true top-contributing dimensions. Real per-dimension explanations need structured tags — see "Taste Dimensions v2" in Pending Tasks.
+- [x] Context intelligence v1 — `com.discover.backend.context`: `ContextRule` interface with `TimeOfDayRule`, `WeatherRule`, `FestivalRule`; `ContextService` autowires `List<ContextRule>` and evaluates all of them; `GET /api/v1/context?lat=&lng=`. Weather calls OpenWeather via `WeatherClient` (`RestClient`), degrades to no suggestion on any failure. **Requires `OPENWEATHER_API_KEY` env var — app won't start without it.** Rules emit descriptive tags only (flavor/texture/temperature/category), never dishes.
+- [x] Personalized Home Feed — `com.discover.backend.homefeed`: `GET /api/v1/home-feed?lat=&lng=` (authenticated). Fetches nearby dishes once (`DishRepository.findWithinDistance`, single join query, 5 km), then (1) `recommendedDishes`: top 10 via `TASTE_PROFILE`, (2) `contextSections`: per context suggestion, filter nearby dishes by its tags → rank that shortlist via `TASTE_PROFILE` → top 5; sections with no matching dish are dropped. `DishRecommendationService` gained a `List<Dish>` overload + `getRecommendedDishesMatchingTags`.
 
 ---
 
@@ -118,6 +119,21 @@ Caught and fixed once already: a feature folder was created as `User/` (capital)
 
 ### Cold start: check *after* filtering, not before fetching
 `RuleBasedDishRecommendationStrategy`'s popularity fallback triggers when the user has no reviews rated 4★+ — checked **after** filtering by rating, not just "does the user have any reviews at all." A user who's reviewed plenty of dishes but never rated anything highly is still a cold-start case for this algorithm; checking too early would have let them fall through to a tag-overlap computation against an empty preference map (everything tying at score 0, no real fallback).
+
+### Two-stage recommendation: context generates candidates, the strategy ranks them
+Home feed context sections don't get their own ranking logic. Context tags only narrow the pool ("what fits right now"); the same `TASTE_PROFILE` strategy then ranks that shortlist ("what would *this* user like"). This is the standard candidate-generation → ranking split real recommenders use. Keeps each stage simple and swappable, and means improving the strategy improves every section at once.
+
+### Strategy as a list vs. Strategy + Factory
+Recommendations use a Factory because exactly **one** strategy runs per request. Context rules have no factory: **all** of them run every time and their results are collected, so Spring just autowires `List<ContextRule>`. Decorator was considered and rejected — its payoff is callers composing *different* wrapper combinations at runtime; here the combination is always "all rules, unordered," so the wrapping machinery would buy nothing.
+
+### Context rules emit tags, never dishes
+`TimeOfDayRule`/`WeatherRule`/`FestivalRule` have no DB access — they only decide *what kind of thing* fits now. Turning tags into real nearby dishes happens once, in the home feed. If each rule did its own nearby-dish lookup, that logic would exist three times. Also why `HomeFeedSection` lives in `homefeed`, not as a field on `ContextSuggestion` — the `context` package stays ignorant of dishes.
+
+### Services are singletons — no per-request state in fields
+Caught in a `HomeFeedService` draft: a `List<Dish> nearByDishes` instance field. Spring creates one instance shared by every request, so concurrent users would read each other's data. Per-request data is always a local variable or a method parameter.
+
+### PostGIS geography distances are in meters
+`ST_DWithin` on `geography` takes meters. A radius of `6.0` means 6 meters, not 6 km. Home feed uses `5000.0`.
 
 ---
 
