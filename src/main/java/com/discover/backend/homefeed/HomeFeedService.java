@@ -5,6 +5,7 @@ import com.discover.backend.context.ContextService;
 import com.discover.backend.context.ContextSuggestion;
 import com.discover.backend.dish.Dish;
 import com.discover.backend.dish.DishService;
+import com.discover.backend.dishreview.DishReviewService;
 import com.discover.backend.recommendation.DishRecommendationService;
 import com.discover.backend.recommendation.RecommendationType;
 import com.discover.backend.recommendation.RecommendedDishDto;
@@ -14,6 +15,8 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -27,15 +30,26 @@ public class HomeFeedService {
     private final DishService dishService;
     private final DishRecommendationService dishRecommendationService;
     private final ContextService contextService;
+    private final DishReviewService dishReviewService;
 
     public HomeFeedDto getHomeFeed(User user, Double latitude, Double longitude) {
         // now for this latitude and longitude we have to find the dishes at places within a certain distance from the user
-        // local variable, not a field — this service is one shared instance across every request/user
+        // local variables, not fields — this service is one shared instance across every request/user
         List<Dish> nearByDishes = dishService.getDishEntitiesNear(latitude, longitude, RADIUS_METERS);
 
+        // home feed is for discovering new dishes — drop anything the user already rated (liked: they know it,
+        // disliked: they don't want it). Done here, before ranking, so both sections get it once.
+        // Compared by id: Dish has no equals(), so two objects for the same row wouldn't match
+        Set<Long> ratedDishIds = dishReviewService.getAllReviewsByUser(user).stream()
+                .map(review -> review.getDish().getId())
+                .collect(Collectors.toSet());
+        List<Dish> candidateDishes = nearByDishes.stream()
+                .filter(dish -> !ratedDishIds.contains(dish.getId()))
+                .toList();
+
         HomeFeedDto feed = new HomeFeedDto();
-        feed.setRecommendedDishes(getNearByRecommendationDishes(user, nearByDishes));
-        feed.setContextSections(getSmartDishRecommendation(user, nearByDishes, latitude, longitude));
+        feed.setRecommendedDishes(getNearByRecommendationDishes(user, candidateDishes));
+        feed.setContextSections(getSmartDishRecommendation(user, candidateDishes, latitude, longitude));
         return feed;
     }
 

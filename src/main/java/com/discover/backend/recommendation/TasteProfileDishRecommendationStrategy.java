@@ -12,6 +12,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -49,8 +50,9 @@ public class TasteProfileDishRecommendationStrategy implements DishRecommendatio
                 .toList();
     }
 
-    // explicit picks and behavioral signal count equally for now (+1.0 each) — no tuned
-    // weighting between them yet, nothing to justify favoring one over the other without real data
+    // each liked dish gets ONE vote in total (5★ = 1.0, 4★ = 0.7), split evenly across its tags;
+    // each explicit pick stays +1.0. Without the split, a 10-tag dish counted as 10 points and
+    // drowned out the picks after a single review — this way picks fade gradually as reviews add up
     private Map<String, Double> buildUserWeights(User user) {
         // now have to build the user weights from the 2 places as mentioned in the main function
         Map<String, Double> weights = new HashMap<>();
@@ -61,10 +63,15 @@ public class TasteProfileDishRecommendationStrategy implements DishRecommendatio
                 .toList()
                 .forEach(review -> {
                     List<String> tags = review.getDish().getTasteTags();
-                    if (tags == null) {
+                    // empty check too — share is computed before the loop, so an empty list would mean dividing by 0
+                    if (tags == null || tags.isEmpty()) {
                         return;
                     }
-                    tags.forEach(tag -> weights.merge(tag, 1.0, Double::sum));
+                    // rating 4 -> 0.7, rating 5 -> 1.0 (filter above already dropped everything below 4)
+                    double vote = review.getRating() == 5 ? 1.0 : 0.7;
+                    // 1.0, not 1 — int / int in Java drops the decimal, so 1 / 4 would be 0
+                    double share = vote / tags.size();
+                    tags.forEach(tag -> weights.merge(tag, share, Double::sum));
                 });
 
         // now the case 2
@@ -102,10 +109,23 @@ public class TasteProfileDishRecommendationStrategy implements DishRecommendatio
         return dot / (userMagnitude * dishMagnitude);
     }
 
+    // tags that describe what KIND of item a dish is (diet, course, meal time) — true of half the menu,
+    // so they explain nothing as a reason. Only skipped in the reason text, they still count in the score.
+    // Goes away once Taste Dimensions v2 splits tags into real categories.
+    private static final Set<String> NON_REASON_TAGS = Set.of(
+            "vegetarian", "non-vegetarian", "main-course", "breakfast", "lunch", "dinner");
+    private static final int MAX_REASON_TAGS = 3;
+
     private RankedDish buildRankedDish(Dish dish, Map<String, Double> userWeights) {
+        // only reads userWeights (to sort) — never changes it, so the reason text can't affect the ranking
         List<String> matchedTags = dish.getTasteTags() == null
                 ? List.of()
-                : dish.getTasteTags().stream().filter(userWeights::containsKey).toList();
+                : dish.getTasteTags().stream()
+                        .filter(userWeights::containsKey)
+                        .filter(tag -> !NON_REASON_TAGS.contains(tag))
+                        .sorted(Comparator.comparingDouble((String tag) -> userWeights.get(tag)).reversed())
+                        .limit(MAX_REASON_TAGS)
+                        .toList();
 
         RankedDish rd = new RankedDish();
         rd.setDish(dish);

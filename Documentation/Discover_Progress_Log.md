@@ -57,17 +57,23 @@
 
 ---
 
-## Stage G — Phase 3: Taste Profile + Recommendations v1 (Built — not yet tested end-to-end)
+## Stage G — Phase 3: Taste Profile + Recommendations v1 (Built + post-test fixes applied — final retest pending)
 
-> Rough plan sketched 2026-09-28, built 2026-09-29 → 2026-10-01. The Build Plan's "done when" bar — two different onboarding answers produce visibly different feeds — hasn't been verified against a running app yet.
+> Rough plan sketched 2026-09-28, built 2026-09-29 → 2026-10-01, first run + test 2026-10-02 → 2026-10-05, fixes 2026-10-06.
+> **Build Plan "done when" bar** (two different onboarding answers → visibly different feeds): first test on 2026-10-05 *technically* passed but barely — switching sweet → spicy picks only swapped 3 of the top 10, and rated dishes held the top slots. That surfaced the five fixes below. **Remaining before Phase 3 is closed:** restart + rerun the sweet-vs-spicy comparison, a no-token request (expect 401) and `.../recommendation/taste_profile` (expect 400). None of the five fixes have been run yet.
 
 - [x] Onboarding taste capture — `V10__create_taste_profiles.sql`, `TasteProfile` entity (`com.discover.backend.tasteprofile`, one row per user, `preferredTags TEXT[]`), repo/service/controller/DTO/mapper. `GET /api/v1/taste-profile/tags` (picker options, pulled from `DishRepository.findDistinctTasteTags()` — same vocabulary dishes use, no second list to drift), `GET /api/v1/taste-profile` (404 = not done yet), `POST /api/v1/taste-profile` (upsert, same shape as `DishReviewService.addOrUpdateReview`).
   Plus "show onboarding once": `V11__add_taste_onboarding_flag.sql` → `User.tasteOnboardingShown` (primitive `boolean`), exposed on `UserDto`. Submitting picks flips it; `PATCH /api/v1/users/onboarding-seen` flips it for the skip path. The client reads the flag after login and decides whether to show the screen — backend never "triggers" UI.
 - [x] Taste Profile learning — **Option B, compute-on-read, no persisted profile row.** Explicit picks are stored (real input has to live somewhere); the behavioral half is computed per request from `dish_reviews` (4★+). Same YAGNI call as dish stats. **Narrower than planned:** learns from ratings only, not the wider `interaction_events` log (views/saves aren't used yet).
-- [x] `TasteProfileDishRecommendationStrategy` + `RecommendationType.TASTE_PROFILE` — real sparse cosine similarity: user vector = `Map<String, Double>` (+1.0 per explicit pick, +1.0 per tag on each 4★+ dish, equal weighting — no tuned constants without data), dish vector = its own `tasteTags`. Cold-start logic extracted into shared `PopularityFallbackRanker`, now used by both strategies.
-- [~] "Why am I seeing this" — **partial.** Reasons name the matched tags ("Because it matches your taste in spicy, rich"), not true top-contributing dimensions. Real per-dimension explanations need structured tags — see "Taste Dimensions v2" in Pending Tasks.
-- [x] Context intelligence v1 — `com.discover.backend.context`: `ContextRule` interface with `TimeOfDayRule`, `WeatherRule`, `FestivalRule`; `ContextService` autowires `List<ContextRule>` and evaluates all of them; `GET /api/v1/context?lat=&lng=`. Weather calls OpenWeather via `WeatherClient` (`RestClient`), degrades to no suggestion on any failure. **Requires `OPENWEATHER_API_KEY` env var — app won't start without it.** Rules emit descriptive tags only (flavor/texture/temperature/category), never dishes.
-- [x] Personalized Home Feed — `com.discover.backend.homefeed`: `GET /api/v1/home-feed?lat=&lng=` (authenticated). Fetches nearby dishes once (`DishRepository.findWithinDistance`, single join query, 5 km), then (1) `recommendedDishes`: top 10 via `TASTE_PROFILE`, (2) `contextSections`: per context suggestion, filter nearby dishes by its tags → rank that shortlist via `TASTE_PROFILE` → top 5; sections with no matching dish are dropped. `DishRecommendationService` gained a `List<Dish>` overload + `getRecommendedDishesMatchingTags`.
+- [x] `TasteProfileDishRecommendationStrategy` + `RecommendationType.TASTE_PROFILE` — real sparse cosine similarity: user vector = `Map<String, Double>`, dish vector = its own `tasteTags`. Cold-start logic extracted into shared `PopularityFallbackRanker`, now used by both strategies.
+  **Weighting (revised 2026-10-06, see Conventions):** explicit pick = +1.0; each 4★+ dish = **one vote** (5★ = 1.0, 4★ = 0.7) split evenly across its tags. Originally every tag on a liked dish got +1.0, so 6 reviews (~46 tag-points) drowned out 4 picks.
+- [~] "Why am I seeing this" — **improved, still partial.** Reason = matched tags minus diet/course/meal-time tags (`NON_REASON_TAGS`), sorted by the user's weight, top 3 — e.g. "Because it matches your taste in italian, creamy, cheesy" instead of all 9 matched tags. True per-dimension explanations still need structured tags — see "Taste Dimensions v2" in Pending Tasks.
+- [x] Context intelligence v1 — `com.discover.backend.context`: `ContextRule` interface with `TimeOfDayRule`, `WeatherRule`, `FestivalRule`; `ContextService` autowires `List<ContextRule>` and evaluates all of them; `GET /api/v1/context?lat=&lng=` (raw rule output, no dishes — mainly useful for debugging). Weather calls OpenWeather via `WeatherClient` (`RestClient`), degrades to no suggestion on any failure. **Requires `OPENWEATHER_API_KEY`** — Windows user env var locally, GitHub secret + `ci.yml` env in CI. Rules emit rich descriptive tags (flavor/texture/temperature/category, 10–20 per rule), never dishes. Needs `spring-boot-starter-restclient` (see Problems & Solutions #8).
+- [x] Personalized Home Feed — `com.discover.backend.homefeed`: `GET /api/v1/home-feed?lat=&lng=` (authenticated). Fetches nearby dishes once (`DishRepository.findWithinDistance`, single join query, 5 km), **removes every dish the user has already rated** (any star — liked: already known; disliked: unwanted), then (1) `recommendedDishes`: top 10 via `TASTE_PROFILE`, (2) `contextSections`: per context suggestion, filter the candidates by its tags → rank via `TASTE_PROFILE` → top 5; sections with no matching dish are dropped. `DishRecommendationService` gained a `List<Dish>` overload + `getRecommendedDishesMatchingTags`.
+- [x] Seed data for testing context matching — `V12__enrich_dish_tags.sql` (richer tags on the 15 `V7` dishes + 11 new dishes at Haldiram's, Starbucks Reserve, The Embassy, Pind Balluchi so every context rule has real matches), `V13__seed_big_chill.sql` (Big Chill + 9 dishes), `V14__add_big_chill_ravioli.sql`. **Chili's Grill & Bar + 10 dishes were inserted straight into the local DB, not via migration** — local-only.
+- [x] API error responses cleaned up for the frontend:
+  - **401 JSON instead of a Google redirect** for unauthenticated `/api/**` requests — `ApiAuthenticationEntryPoint` registered via `exceptionHandling(...defaultAuthenticationEntryPointFor(..., PathPatternRequestMatcher...("/api/**")))`. Browser login still redirects.
+  - **400 instead of 500** for bad client input — `GlobalExceptionHandler` now handles `MethodArgumentTypeMismatchException` (e.g. `taste_profile` for the enum, malformed UUID), `MissingServletRequestParameterException` (missing `lat`), `HttpMessageNotReadableException` (broken JSON body).
 
 ---
 
@@ -134,6 +140,21 @@ Caught in a `HomeFeedService` draft: a `List<Dish> nearByDishes` instance field.
 
 ### PostGIS geography distances are in meters
 `ST_DWithin` on `geography` takes meters. A radius of `6.0` means 6 meters, not 6 km. Home feed uses `5000.0`.
+
+### One liked dish = one vote, not one point per tag
+In the taste vector, each 4★+ dish contributes a single vote (5★ = 1.0, 4★ = 0.7) split evenly across its tags; each onboarding pick is +1.0. With +1 per tag, a dish's influence scaled with how many tags it happened to have, and six reviews outweighed four picks ~11:1 from the very first review. With one vote per dish, picks naturally fade as evidence grows (6 rated dishes → picks ≈ 40% of the profile; 50 → ≈ 7%) — no separate decay logic needed. Watch for: `1 / size()` is integer division (always 0 for size > 1) — use `1.0`, and guard empty tag lists when the share is computed before the loop.
+
+### Scoring vs. explaining are kept separate
+`userWeights` decides the ranking; the reason text only *reads* it. Tags like `vegetarian`, `main-course`, `dinner` are dropped from the reason (they describe what kind of item a dish is, true of half the menu) but still count in the score. Changing how something is explained must never change what gets chosen.
+
+### Filter out by id, not by object — and filter before ranking
+Removing already-rated dishes compares `dish.getId()` against a `Set<Long>`, because `Dish` deliberately has no `equals()` (no `@Data` on entities) — two objects for the same row compare unequal. It's done on the candidate list *before* ranking, once, so every section gets it; after ranking you only have DTOs. A draft version compared `RecommendedDishDto`s against a `List<DishReview>` — different types, so `contains` was always false and compiled without complaint, silently emptying the feed.
+
+### Security filters run before controllers — errors there need their own handling
+`@RestControllerAdvice` (`GlobalExceptionHandler`) only sees exceptions thrown from controllers. Authentication failures happen in Spring Security's filter chain first, so the 401 JSON is written by `ApiAuthenticationEntryPoint`, and `OAuth2SuccessHandler` writes its own error JSON — same `{"error":{code,message,details}}` shape everywhere, so the frontend reads errors from one place.
+
+### When to use `ResponseEntity`
+Controllers return plain DTOs — `@RestController` already means 200 + JSON. `ResponseEntity` (or `@ResponseStatus`) is for when the status should be something else: error handlers (400/404/500), and in future `204 No Content` for empty successes (`PATCH /users/onboarding-seen`, `DELETE /saved-places/...`) and `201 Created` for pure creates. Current POSTs are upserts, so 200 is defensible.
 
 ---
 

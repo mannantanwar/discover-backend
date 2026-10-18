@@ -96,6 +96,30 @@
 
 ---
 
+## 8. App refused to start — no `RestClient.Builder` bean (Spring Boot 4 starter split)
+
+**Phase:** Stage G — Phase 3 (first run)
+
+**Problem:** `Parameter 0 of constructor in com.discover.backend.context.WeatherClient required a bean of type 'org.springframework.web.client.RestClient$Builder' that could not be found.` An attempted fix — `@Bean` on the `RestClient` field — didn't compile: `@Bean` only goes on methods inside a `@Configuration` class, and the field wasn't what was missing anyway.
+
+**Root cause:** `WeatherClient` was written assuming Spring Boot 3 behaviour, where the web starter brought `RestClient` auto-configuration with it. Spring Boot 4 split auto-configuration into separate modules (`starter-webmvc`, `starter-flyway`, `starter-security`…), and the auto-config that registers a `RestClient.Builder` lives in its own `spring-boot-starter-restclient`, which wasn't a dependency. Spring stops at the first bean it can't build, so this surfaced before anything else in Stage G.
+
+**Fix:** added `implementation("org.springframework.boot:spring-boot-starter-restclient")`. Its auto-configuration class (`@ConditionalOnClass` / `@ConditionalOnMissingBean`) then registers a prototype-scoped `RestClient.Builder` — each injection point gets its own copy, so `WeatherClient` calling `.baseUrl(...)` can't leak into another client.
+
+---
+
+## 9. Postman showed Google's sign-in HTML instead of API JSON
+
+**Phase:** Stage G — Phase 3 (testing)
+
+**Problem:** `GET /api/v1/taste-profile/tags` in Postman returned a page of HTML from `accounts.google.com`.
+
+**Root cause:** the request reached a protected route without a valid token (expired, or not attached). Because `oauth2Login` is configured, Spring Security's default reaction to "not authenticated" is a 302 redirect to Google — meant for browsers — and Postman followed the redirect automatically. Useless for any non-browser client.
+
+**Fix:** short-term, a fresh token (they expire after 24h) and turning off Postman's "Automatically follow redirects" so failures show as a plain 302. Proper fix: `ApiAuthenticationEntryPoint` — `/api/**` now answers a missing/invalid token with a 401 JSON body instead of redirecting.
+
+---
+
 ## How this file gets used
 
 Add an entry whenever something breaks in a way that took real investigation to root-cause — not every small typo or review correction, those are just normal iteration. Include what the symptom looked like, what was ruled out (if anything), the actual root cause, and the fix — future-us should be able to recognize the same class of problem faster next time.

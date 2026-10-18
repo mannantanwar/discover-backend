@@ -11,8 +11,8 @@ The Dockerfile itself is being written now, but pushing an actual live deploymen
 
 ## Security
 
-**`SecurityConfig`'s authorization rules are still `.anyRequest().permitAll()`.**
-Deliberately temporary since before OAuth2/JWT existed — every endpoint is currently open regardless of authentication. Needs tightening once we're confident the login flow is solid: protected routes should require authentication, only login/public routes should stay open.
+**`SecurityConfig` still ends in `.anyRequest().permitAll()` — partially tightened.**
+Now authenticated: `/saved-places/**`, `/taste-profile/**`, `/users/onboarding-seen`, `/home-feed/**` (and unauthenticated `/api/**` calls get a 401 JSON via `ApiAuthenticationEntryPoint`, added 2026-10-06). **Still open but using `@AuthenticationPrincipal` anyway** — so a request with no token gets a `null` user and a 500 instead of a 401: `POST /dishes/{id}/reviews`, `GET /places/{id}/recommendation/{type}`, and `GET /dishes/{id}` (passes `viewer` into event logging). Each needs a `.requestMatchers(...).authenticated()` line — or flip the default to `.anyRequest().authenticated()` and list the genuinely public routes instead, which is the safer default.
 
 **`application.yml`'s DB `username`/`password` are hardcoded plain values (`user`/`root`), not the `${DB_USERNAME:user}` env-var-with-fallback pattern used originally.**
 Flagged once when it happened, never reverted. Low risk (throwaway local credential), but inconsistent with the pattern used for the JWT secret and OAuth2 credentials. Worth reverting for consistency, not urgent.
@@ -21,6 +21,23 @@ Flagged once when it happened, never reverted. Low risk (throwaway local credent
 
 **Email/password registration & login (traditional, non-OAuth2).**
 Listed in the long-term Product Spec's MVP feature list, but explicitly out of Phase 0's actual task list — only Google OAuth2 is in scope right now. Would need its own `LoginDto`/`SignupDto`/password-hashing logic if/when it's actually scheduled.
+
+**Signing in with a second Google account shows a 404 on Google's own page — noted 2026-10-03, parked.**
+The existing account signs in fine (same client ID/secret/redirect URI), so the backend config is fine and the failure is between browser and Google. Most likely causes: switching accounts mid-flow ("Use another account"), a new account needing verification first, or a stale reused `state` URL. Next step when revisited: retry in an incognito window starting from `/oauth2/authorization/google`, and capture the full URL on the 404 page.
+
+**Mobile-friendly login — needed before/with the frontend.**
+Current login is a browser redirect that prints `{"token": ...}` as a page — fine for Postman testing, not for an app. Mobile apps normally use native Google Sign-In and send Google's ID token to the backend, which verifies it and issues our JWT. Expect this to be one of the first backend changes the frontend forces.
+
+## Admin / Data
+
+**No API to add or edit places and dishes — noted 2026-10-03.**
+All place/dish data comes from Flyway seed migrations (by design — the Build Plan's "manual seeding for MVP", and migrations are reproducible across local/CI/prod). A real create endpoint needs: a role on `User` (`USER`/`ADMIN`) so not every logged-in user can create places, validation, coordinates (client-supplied lat/lng or a geocoding API), and duplicate protection. Worth building once seeding through SQL gets painful; user-submitted places with moderation is the later Phase 4/5 crowdsourcing feature.
+
+## API polish
+
+**Status codes for non-200 successes.** `PATCH /users/onboarding-seen` and `DELETE /saved-places/...` return `200` with an empty body — `204 No Content` is more accurate. Pure creates would normally return `201 Created`; current POSTs are upserts, so `200` is defensible there.
+
+**`GET /api/v1/context` is now only a debugging endpoint.** The home feed is its only real consumer (via `ContextService`). Keep or remove before the frontend, so the public API only has endpoints clients actually use.
 
 ## Testing
 
@@ -38,7 +55,10 @@ Nothing records "we showed these dishes, the user tapped/ordered/rated this one 
 Both strategies only learn from 4★+ reviews; a 1★ review teaches the system nothing. Two parts:
 - **The disliked dish itself** (rated ≤2★) should be filtered out of that user's recommendations entirely — no point re-suggesting something they said they didn't like.
 - **Its tags** should push the user's weights *down* (negative contribution in the taste vector), so similar dishes drop too. Needs care: one bad dish shouldn't blacklist a whole tag like `north-indian` — a dislike should subtract less than a like adds, or only count after repeated dislikes.
-Related, seen in testing 2026-10-03: dishes the user has *already* rated (liked) dominate "Recommended for you". Likely split: exclude already-rated dishes from recommendations, surface liked ones in a separate "Order again" section.
+Related, seen in testing 2026-10-03: dishes the user has *already* rated dominated "Recommended for you". **Partly done 2026-10-06:** the home feed now removes every already-rated dish (any star) before ranking, so disliked dishes also disappear from the feed. Still open: the per-place recommendation endpoint keeps showing disliked dishes (intentionally keeps liked ones — "your favourite here"), the tag down-weighting, and an "Order again" section for liked dishes.
+
+**Recency / time decay — noted 2026-10-06.**
+Taste changes over time, so a review from two years ago should count less than last week's (e.g. weight × 0.5^(age / half-life)). Not built yet: all reviews are from the same week, so there's nothing to decay and no way to see whether it works. Revisit once there are months of real review data.
 
 **Repeated per-request work in the home feed — noted 2026-10-01.**
 Each context section re-runs `TASTE_PROFILE`, which re-fetches the user's reviews and taste profile — up to ~4 identical lookups per home-feed request. Negligible at 15 dishes; fix (compute user weights once and reuse) if the feed ever gets slow.
